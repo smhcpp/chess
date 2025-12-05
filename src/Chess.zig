@@ -109,7 +109,7 @@ pub const Chess = struct {
     }
 
     pub fn movePiece(c: *Chess, from: rl.Vector2, to: rl.Vector2) void {
-        print("Here are the possible moves: {any}\n", .{c.possible_moves[0..c.max_possible_moves]});
+        // print("Here are the possible moves: {any}\n", .{c.possible_moves[0..c.max_possible_moves]});
         for (0..c.max_possible_moves) |i| {
             const from_equal = c.possible_moves[i].from.x == from.x and c.possible_moves[i].from.y == from.y;
             const to_equal = c.possible_moves[i].to.x == to.x and c.possible_moves[i].to.y == to.y;
@@ -137,7 +137,7 @@ pub const Chess = struct {
         }
         const piece_x = @floor(pos.x / PieceSize);
         const piece_y = @floor(pos.y / PieceSize);
-        const to_piece = c.board[@intFromFloat(piece_y)][@intFromFloat(piece_x)];
+        const to_piece = c.board[@intFromFloat(piece_x)][@intFromFloat(piece_y)];
         if (c.selected_piece) |from| {
             // const from_piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
             // const t = @intFromEnum(to_piece);
@@ -145,9 +145,9 @@ pub const Chess = struct {
             // const wmove = c.turn and f < 7 and (t == 0 or t > 6);
             // const bmove = !c.turn and f > 6 and t < 7;
             // if (wmove or bmove) c.movePiece(from, .{ .x = piece_y, .y = piece_x });
-            c.movePiece(from, .{ .x = piece_y, .y = piece_x });
+            c.movePiece(from, .{ .x = piece_x, .y = piece_y });
             c.selected_piece = null;
-        } else if (to_piece != .None) c.selected_piece = .{ .x = piece_y, .y = piece_x };
+        } else if (to_piece != .None) c.selected_piece = .{ .x = piece_x, .y = piece_y };
     }
 
     fn drawBoard(c: *Chess) void {
@@ -158,14 +158,14 @@ pub const Chess = struct {
                 const colorw = rl.Color{ .r = 230, .g = 230, .b = 230, .a = 255 };
                 const colorb = rl.Color{ .r = 70, .g = 70, .b = 70, .a = 255 };
                 const color = if ((i + j) % 2 == 0) colorw else colorb;
-                const x: i32 = @intFromFloat(startx + @as(f32, @floatFromInt(j)) * PieceSize);
-                const y: i32 = @intFromFloat(starty + @as(f32, @floatFromInt(i)) * PieceSize);
+                const x: i32 = @intFromFloat(startx + @as(f32, @floatFromInt(i)) * PieceSize);
+                const y: i32 = @intFromFloat(starty + @as(f32, @floatFromInt(j)) * PieceSize);
                 rl.drawRectangle(x, y, PieceSize, PieceSize, color);
             }
         }
         if (c.selected_piece) |selected_piece| {
-            const selectedx: i32 = @intFromFloat(startx + selected_piece.y * PieceSize);
-            const selectedy: i32 = @intFromFloat(starty + selected_piece.x * PieceSize);
+            const selectedx: i32 = @intFromFloat(startx + selected_piece.x * PieceSize);
+            const selectedy: i32 = @intFromFloat(starty + selected_piece.y * PieceSize);
             rl.drawRectangleLines(selectedx, selectedy, PieceSize, PieceSize, rl.Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
         }
         for (0..8) |i| {
@@ -222,8 +222,8 @@ pub const Chess = struct {
                     },
                 }
                 const dest_rect = rl.Rectangle{
-                    .x = startx + @as(f32, @floatFromInt(j)) * PieceSize,
-                    .y = starty + @as(f32, @floatFromInt(i)) * PieceSize,
+                    .x = startx + @as(f32, @floatFromInt(i)) * PieceSize,
+                    .y = starty + @as(f32, @floatFromInt(j)) * PieceSize,
                     .width = PieceSize,
                     .height = PieceSize,
                 };
@@ -237,29 +237,29 @@ pub const Chess = struct {
     /// and top right is (0, 7)
     fn setupBoard(c: *Chess) void {
         c.board[0][0] = .BRook;
-        c.board[0][1] = .BKnight;
-        c.board[0][2] = .BBishop;
-        c.board[0][3] = .BQueen;
-        c.board[0][4] = .BKing;
-        c.board[0][5] = .BBishop;
-        c.board[0][6] = .BKnight;
-        c.board[0][7] = .BRook;
+        c.board[1][0] = .BKnight;
+        c.board[2][0] = .BBishop;
+        c.board[3][0] = .BQueen;
+        c.board[4][0] = .BKing;
+        c.board[5][0] = .BBishop;
+        c.board[6][0] = .BKnight;
+        c.board[7][0] = .BRook;
         for (0..8) |i| {
-            c.board[1][i] = .BPawn;
+            c.board[i][1] = .BPawn;
         }
-        c.board[7][0] = .WRook;
-        c.board[7][1] = .WKnight;
-        c.board[7][2] = .WBishop;
-        c.board[7][3] = .WQueen;
-        c.board[7][4] = .WKing;
-        c.board[7][5] = .WBishop;
-        c.board[7][6] = .WKnight;
+        c.board[0][7] = .WRook;
+        c.board[1][7] = .WKnight;
+        c.board[2][7] = .WBishop;
+        c.board[3][7] = .WQueen;
+        c.board[4][7] = .WKing;
+        c.board[5][7] = .WBishop;
+        c.board[6][7] = .WKnight;
         c.board[7][7] = .WRook;
         for (0..8) |i| {
-            c.board[6][i] = .WPawn;
+            c.board[i][6] = .WPawn;
         }
-        for (2..6) |i| {
-            for (0..8) |j| {
+        for (0..8) |i| {
+            for (2..6) |j| {
                 c.board[i][j] = .None;
             }
         }
