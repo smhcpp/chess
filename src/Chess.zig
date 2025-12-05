@@ -1,6 +1,7 @@
 const rl = @import("raylib");
 const std = @import("std");
 const print = std.debug.print;
+const H = @import("helper.zig");
 
 pub const Piece = enum(u8) {
     None,
@@ -18,6 +19,11 @@ pub const Piece = enum(u8) {
     BKing,
 };
 
+pub const Move = struct {
+    from: rl.Vector2,
+    to: rl.Vector2,
+};
+
 pub const Chess = struct {
     pub const PieceSize: f32 = 60;
 
@@ -27,6 +33,8 @@ pub const Chess = struct {
     board_position: rl.Vector2 = .{ .x = 0, .y = 0 },
     //turn : white move, !turn : black move
     turn: bool = true,
+    possible_moves: [256]Move = undefined,
+    max_possible_moves: usize = 0,
     // square_size: f32 = 60,
 
     pub fn init(allocator: std.mem.Allocator) !*Chess {
@@ -38,17 +46,13 @@ pub const Chess = struct {
 
     fn setup(c: *Chess) !void {
         setupBoard(c);
+        c.updatePossibleMoves();
+        rl.setTraceLogLevel(.err);
         const screenWidth = PieceSize * 8;
         const screenHeight = PieceSize * 8;
         rl.initWindow(screenWidth, screenHeight, "Chess");
         rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
         c.texture = try rl.loadTexture("assets/pieces.png");
-        if (c.texture.id <= 0) {
-            print("Failed to load texture: {}\n", .{c.texture.id});
-            std.process.exit(1);
-        } else {
-            print("Texture loaded successfully: ({},{})\n", .{ c.texture.width, c.texture.height });
-        }
     }
 
     pub fn deinit(c: *Chess, allocator: std.mem.Allocator) void {
@@ -73,11 +77,51 @@ pub const Chess = struct {
         c.drawBoard();
     }
 
-    fn movePiece(c: *Chess, from: rl.Vector2, to: rl.Vector2) void {
-        c.turn = !c.turn;
-        const piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
-        c.board[@intFromFloat(from.x)][@intFromFloat(from.y)] = .None;
-        c.board[@intFromFloat(to.x)][@intFromFloat(to.y)] = piece;
+    fn updatePossibleMoves(c: *Chess) void {
+        c.max_possible_moves = 0;
+        for (0..8) |i| {
+            for (0..8) |j| {
+                switch (c.board[i][j]) {
+                    .None => {
+                        continue;
+                    },
+                    .WPawn, .BPawn => {
+                        H.checkPawnMoves(&c.board, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                    },
+                    .WRook, .BRook => {
+                        H.checkRookMoves(&c.board, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                    },
+                    .WBishop, .BBishop => {
+                        H.checkBishopMoves(&c.board, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                    },
+                    .WKnight, .BKnight => {
+                        H.checkKnightMoves(&c.board, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                    },
+                    .WQueen, .BQueen => {
+                        H.checkQueenMoves(&c.board, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                    },
+                    .WKing, .BKing => {
+                        H.checkKingMoves(&c.board, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                    },
+                }
+            }
+        }
+    }
+
+    pub fn movePiece(c: *Chess, from: rl.Vector2, to: rl.Vector2) void {
+        print("Here are the possible moves: {any}\n", .{c.possible_moves[0..c.max_possible_moves]});
+        for (0..c.max_possible_moves) |i| {
+            const from_equal = c.possible_moves[i].from.x == from.x and c.possible_moves[i].from.y == from.y;
+            const to_equal = c.possible_moves[i].to.x == to.x and c.possible_moves[i].to.y == to.y;
+            if (from_equal and to_equal) {
+                const piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
+                c.board[@intFromFloat(from.x)][@intFromFloat(from.y)] = .None;
+                c.board[@intFromFloat(to.x)][@intFromFloat(to.y)] = piece;
+                c.turn = !c.turn;
+                c.updatePossibleMoves();
+                break;
+            }
+        }
     }
 
     fn checkMouse(c: *Chess) void {
@@ -95,12 +139,13 @@ pub const Chess = struct {
         const piece_y = @floor(pos.y / PieceSize);
         const to_piece = c.board[@intFromFloat(piece_y)][@intFromFloat(piece_x)];
         if (c.selected_piece) |from| {
-            const from_piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
-            const t = @intFromEnum(to_piece);
-            const f = @intFromEnum(from_piece);
-            const wmove = c.turn and f < 7 and (t == 0 or t > 6);
-            const bmove = !c.turn and f > 6 and t < 7;
-            if (wmove or bmove) c.movePiece(from, .{ .x = piece_y, .y = piece_x });
+            // const from_piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
+            // const t = @intFromEnum(to_piece);
+            // const f = @intFromEnum(from_piece);
+            // const wmove = c.turn and f < 7 and (t == 0 or t > 6);
+            // const bmove = !c.turn and f > 6 and t < 7;
+            // if (wmove or bmove) c.movePiece(from, .{ .x = piece_y, .y = piece_x });
+            c.movePiece(from, .{ .x = piece_y, .y = piece_x });
             c.selected_piece = null;
         } else if (to_piece != .None) c.selected_piece = .{ .x = piece_y, .y = piece_x };
     }
