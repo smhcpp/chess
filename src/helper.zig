@@ -44,7 +44,10 @@ pub fn checkBishopMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, wh
             const tempo = @intFromEnum(target_piece);
             const target_color = tempo < 7;
             if (target_color == color and target_piece != .None) break;
-            if (color != turn) continue;
+            if (color != turn) {
+                if (target_piece != .None) break;
+                continue;
+            }
             possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
             max_possible_moves.* += 1;
             if (target_piece != .None) break;
@@ -71,7 +74,10 @@ pub fn checkRookMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
             const tempo = @intFromEnum(target_piece);
             const target_color = tempo < 7;
             if (target_color == color and target_piece != .None) break;
-            if (color != turn) continue;
+            if (color != turn) {
+                if (target_piece != .None) break;
+                continue;
+            }
             possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
             max_possible_moves.* += 1;
             if (target_piece != .None) break;
@@ -98,7 +104,10 @@ pub fn checkQueenMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whi
             const tempo = @intFromEnum(target_piece);
             const target_color = tempo < 7;
             if (target_color == color and target_piece != .None) break;
-            if (color != turn) continue;
+            if (color != turn) {
+                if (target_piece != .None) break;
+                continue;
+            }
             possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
             max_possible_moves.* += 1;
             if (target_piece != .None) break;
@@ -199,6 +208,8 @@ pub fn checkKingMoves(
     turn: bool,
     i: f32,
     j: f32,
+    can_castle_short: bool,
+    can_castle_long: bool,
 ) void {
     const color = @intFromEnum(board[@intFromFloat(i)][@intFromFloat(j)]) < 7;
     if (color != turn) return;
@@ -215,6 +226,33 @@ pub fn checkKingMoves(
         if (!color and white_attack_map[@intFromFloat(newi)][@intFromFloat(newj)]) continue;
         possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
         max_possible_moves.* += 1;
+    }
+    if (can_castle_short) {
+        const locx: f32 = 4;
+        const locy: f32 = if (color) 7 else 0;
+        const is_empty = board[@intFromFloat(locx + 1)][@intFromFloat(locy)] == .None and board[@intFromFloat(locx + 2)][@intFromFloat(locy)] == .None;
+        const is_attacked = if (!color)
+            black_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx + 1)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx + 2)][@intFromFloat(locy)]
+        else
+            white_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx + 1)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx + 2)][@intFromFloat(locy)];
+        if (is_empty and !is_attacked) {
+            possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = locx + 2, .y = locy } };
+            max_possible_moves.* += 1;
+        }
+    }
+    if (can_castle_long) {
+        const locx: f32 = 4;
+        const locy: f32 = if (color) 7 else 0;
+        const is_empty = board[@intFromFloat(locx - 1)][@intFromFloat(locy)] == .None and board[@intFromFloat(locx - 2)][@intFromFloat(locy)] == .None;
+        const is_attacked = if (!color)
+            black_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx - 1)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx - 2)][@intFromFloat(locy)]
+        else
+            white_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx - 1)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx - 2)][@intFromFloat(locy)];
+
+        if (is_empty and !is_attacked) {
+            possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = locx - 2, .y = locy } };
+            max_possible_moves.* += 1;
+        }
     }
 }
 

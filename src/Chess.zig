@@ -34,6 +34,10 @@ pub const Chess = struct {
     texture: rl.Texture2D = undefined,
     board_position: rl.Vector2 = .{ .x = 0, .y = 0 },
     enpassant_location: ?rl.Vector2 = null,
+    can_castle_short_white: bool = true,
+    can_castle_long_white: bool = true,
+    can_castle_short_black: bool = true,
+    can_castle_long_black: bool = true,
     //turn : white move, !turn : black move
     turn: bool = true,
     possible_moves: [256]Move = undefined,
@@ -103,6 +107,8 @@ pub const Chess = struct {
                 c.turn,
                 @floatFromInt(wki),
                 @floatFromInt(wkj),
+                c.can_castle_short_white,
+                c.can_castle_long_white,
             );
             H.checkKingMoves(
                 &c.board,
@@ -113,6 +119,8 @@ pub const Chess = struct {
                 c.turn,
                 @floatFromInt(bki),
                 @floatFromInt(bkj),
+                c.can_castle_short_black,
+                c.can_castle_long_black,
             );
         }
         for (0..8) |i| {
@@ -213,10 +221,41 @@ pub const Chess = struct {
                         c.board[@intFromFloat(loc.x)][@intFromFloat(y)] = .None;
                     }
                 }
-
                 c.enpassant_location = null;
                 if (piece == .BPawn and from.y == 1 and to.y == 3) c.enpassant_location = .{ .x = to.x, .y = to.y - 1 };
                 if (piece == .WPawn and from.y == 6 and to.y == 4) c.enpassant_location = .{ .x = to.x, .y = to.y + 1 };
+
+                if (piece == .WKing) {
+                    c.can_castle_short_white = false;
+                    c.can_castle_long_white = false;
+                    if( from.x-to.x == 2) {
+                        const rook = c.board[0][7];
+                        c.board[0][7] = .None;
+                        c.board[3][7] = rook;
+                    }else if(from.x-to.x == -2) {
+                        const rook = c.board[7][7];
+                        c.board[7][7] = .None;
+                        c.board[5][7] = rook;
+                    }
+                }
+                if (piece == .BKing) {
+                    c.can_castle_short_black = false;
+                    c.can_castle_long_black = false;
+                    if( from.x-to.x == 2) {
+                        const rook = c.board[0][0];
+                        c.board[0][0] = .None;
+                        c.board[3][0] = rook;
+                    }else if(from.x-to.x == -2) {
+                        const rook = c.board[7][7];
+                        c.board[7][0] = .None;
+                        c.board[5][0] = rook;
+                    }
+                }
+                if (from.x == 0 and from.y == 7) c.can_castle_long_white = false;
+                if (from.x == 7 and from.y == 7) c.can_castle_short_white = false;
+                if (from.x == 0 and from.y == 0) c.can_castle_long_black = false;
+                if (from.x == 7 and from.y == 0) c.can_castle_short_black = false;
+
                 c.turn = !c.turn;
                 c.updatePossibleMoves();
                 break;
@@ -258,11 +297,25 @@ pub const Chess = struct {
                 const colorw = rl.Color{ .r = 230, .g = 230, .b = 230, .a = 255 };
                 const colorb = rl.Color{ .r = 70, .g = 70, .b = 70, .a = 255 };
                 var color = if ((i + j) % 2 == 0) colorw else colorb;
-                if (c.black_attack_map[i][j]) color = .red;
-                if (c.white_attack_map[i][j]) color = .blue;
+                const redc = rl.Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+                const bluec = rl.Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
+                const purplec = rl.Color{ .r = 128, .g = 0, .b = 128, .a = 255 };
+                if (c.black_attack_map[i][j] and c.white_attack_map[i][j]) {
+                    color = purplec;
+                } else if (c.black_attack_map[i][j]) {
+                    color = redc;
+                } else if (c.white_attack_map[i][j]) {
+                    color = bluec;
+                }
                 const x: i32 = @intFromFloat(startx + @as(f32, @floatFromInt(i)) * PieceSize);
                 const y: i32 = @intFromFloat(starty + @as(f32, @floatFromInt(j)) * PieceSize);
                 rl.drawRectangle(x, y, PieceSize, PieceSize, color);
+                // if (c.black_attack_map[i][j]) {
+                //     rl.drawCircle(x + 5, y + 5, 4, redc);
+                // }
+                // if (c.white_attack_map[i][j]) {
+                //     rl.drawCircle(x + @as(i32, @intFromFloat(PieceSize)) - 5, y + 5, 4, bluec);
+                // }
             }
         }
         if (c.selected_piece) |selected_piece| {
