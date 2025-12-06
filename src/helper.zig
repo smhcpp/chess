@@ -231,7 +231,7 @@ pub fn checkKingMoves(
         const locx: f32 = 4;
         const locy: f32 = if (color) 7 else 0;
         const is_empty = board[@intFromFloat(locx + 1)][@intFromFloat(locy)] == .None and board[@intFromFloat(locx + 2)][@intFromFloat(locy)] == .None;
-        const is_attacked = if (!color)
+        const is_attacked = if (color)
             black_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx + 1)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx + 2)][@intFromFloat(locy)]
         else
             white_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx + 1)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx + 2)][@intFromFloat(locy)];
@@ -244,7 +244,7 @@ pub fn checkKingMoves(
         const locx: f32 = 4;
         const locy: f32 = if (color) 7 else 0;
         const is_empty = board[@intFromFloat(locx - 1)][@intFromFloat(locy)] == .None and board[@intFromFloat(locx - 2)][@intFromFloat(locy)] == .None;
-        const is_attacked = if (!color)
+        const is_attacked = if (color)
             black_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx - 1)][@intFromFloat(locy)] or black_attack_map[@intFromFloat(locx - 2)][@intFromFloat(locy)]
         else
             white_attack_map[@intFromFloat(locx)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx - 1)][@intFromFloat(locy)] or white_attack_map[@intFromFloat(locx - 2)][@intFromFloat(locy)];

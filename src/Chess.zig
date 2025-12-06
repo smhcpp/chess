@@ -246,7 +246,7 @@ pub const Chess = struct {
                         c.board[0][0] = .None;
                         c.board[3][0] = rook;
                     }else if(from.x-to.x == -2) {
-                        const rook = c.board[7][7];
+                        const rook = c.board[7][0];
                         c.board[7][0] = .None;
                         c.board[5][0] = rook;
                     }
@@ -294,28 +294,22 @@ pub const Chess = struct {
         const starty = c.board_position.y;
         for (0..8) |i| {
             for (0..8) |j| {
-                const colorw = rl.Color{ .r = 230, .g = 230, .b = 230, .a = 255 };
-                const colorb = rl.Color{ .r = 70, .g = 70, .b = 70, .a = 255 };
-                var color = if ((i + j) % 2 == 0) colorw else colorb;
-                const redc = rl.Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
-                const bluec = rl.Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
-                const purplec = rl.Color{ .r = 128, .g = 0, .b = 128, .a = 255 };
-                if (c.black_attack_map[i][j] and c.white_attack_map[i][j]) {
-                    color = purplec;
-                } else if (c.black_attack_map[i][j]) {
-                    color = redc;
-                } else if (c.white_attack_map[i][j]) {
-                    color = bluec;
-                }
                 const x: i32 = @intFromFloat(startx + @as(f32, @floatFromInt(i)) * PieceSize);
                 const y: i32 = @intFromFloat(starty + @as(f32, @floatFromInt(j)) * PieceSize);
+                const colorw = rl.Color{ .r = 230, .g = 230, .b = 230, .a = 255 };
+                const colorb = rl.Color{ .r = 70, .g = 70, .b = 70, .a = 255 };
+                const color = if ((i + j) % 2 == 0) colorw else colorb;
+                const redc = rl.Color{ .r = 255, .g = 0, .b = 0, .a = 150 };
+                const bluec = rl.Color{ .r = 0, .g = 0, .b = 255, .a = 150 };
+                const purplec = rl.Color{ .r = 128, .g = 0, .b = 128, .a = 150 };
                 rl.drawRectangle(x, y, PieceSize, PieceSize, color);
-                // if (c.black_attack_map[i][j]) {
-                //     rl.drawCircle(x + 5, y + 5, 4, redc);
-                // }
-                // if (c.white_attack_map[i][j]) {
-                //     rl.drawCircle(x + @as(i32, @intFromFloat(PieceSize)) - 5, y + 5, 4, bluec);
-                // }
+                if (c.black_attack_map[i][j] and c.white_attack_map[i][j]) {
+                    rl.drawRectangle(x, y, PieceSize, PieceSize, purplec);
+                } else if (c.black_attack_map[i][j]) {
+                    rl.drawRectangle(x, y, PieceSize, PieceSize, redc);
+                } else if (c.white_attack_map[i][j]) {
+                    rl.drawRectangle(x, y, PieceSize, PieceSize, bluec);
+                }
             }
         }
         if (c.selected_piece) |selected_piece| {
