@@ -15,11 +15,11 @@ pub fn checkKnightMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, wh
         } else {
             black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)] = true;
         }
-        if (color != turn) continue;
         const target_piece = board[@intFromFloat(newi)][@intFromFloat(newj)];
         const tempo = @intFromEnum(target_piece);
         const target_color = tempo < 7;
-        if (target_color == turn and target_piece != .None) continue;
+        if (target_color == color and target_piece != .None) continue;
+        if (color != turn) continue;
         possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
         max_possible_moves.* += 1;
     }
@@ -40,13 +40,14 @@ pub fn checkBishopMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, wh
             } else {
                 black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)] = true;
             }
-            if (color != turn) continue;
             const target_piece = board[@intFromFloat(newi)][@intFromFloat(newj)];
             const tempo = @intFromEnum(target_piece);
             const target_color = tempo < 7;
-            if (target_color == turn and target_piece != .None) break;
+            if (target_color == color and target_piece != .None) break;
+            if (color != turn) continue;
             possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
             max_possible_moves.* += 1;
+            if (target_piece != .None) break;
         }
     }
 }
@@ -66,13 +67,14 @@ pub fn checkRookMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
             } else {
                 black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)] = true;
             }
-            if (color != turn) continue;
             const target_piece = board[@intFromFloat(newi)][@intFromFloat(newj)];
             const tempo = @intFromEnum(target_piece);
             const target_color = tempo < 7;
-            if (target_color == turn and target_piece != .None) break;
+            if (target_color == color and target_piece != .None) break;
+            if (color != turn) continue;
             possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
             max_possible_moves.* += 1;
+            if (target_piece != .None) break;
         }
     }
 }
@@ -92,13 +94,14 @@ pub fn checkQueenMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whi
             } else {
                 black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)] = true;
             }
-            if (color != turn) continue;
             const target_piece = board[@intFromFloat(newi)][@intFromFloat(newj)];
             const tempo = @intFromEnum(target_piece);
             const target_color = tempo < 7;
-            if (target_color == turn and target_piece != .None) break;
+            if (target_color == color and target_piece != .None) break;
+            if (color != turn) continue;
             possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
             max_possible_moves.* += 1;
+            if (target_piece != .None) break;
         }
     }
 }
@@ -107,7 +110,7 @@ pub fn checkPawnMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
     const color = @intFromEnum(board[@intFromFloat(i)][@intFromFloat(j)]) < 7;
     // const promotion = (turn and j==7) or (!turn and j==0);
     // const enpassant = (turn and j==6) or (!turn and j==1);
-    const move1 = if (turn) [2]f32{ 0, -1 } else [2]f32{ 0, 1 };
+    const move1 = if (color) [2]f32{ 0, -1 } else [2]f32{ 0, 1 };
     var one_move_flag = false;
     one_move: {
         if (color != turn) break :one_move;
@@ -121,7 +124,7 @@ pub fn checkPawnMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
     }
     two_move: {
         if (color != turn) break :two_move;
-        if (!((turn and j == 6) or (!turn and j == 1)) or !one_move_flag) break :two_move;
+        if (!((color and j == 6) or (!color and j == 1)) or !one_move_flag) break :two_move;
         const newj = j + 2 * move1[1];
         if (newj < 0 or newj >= 8) break :two_move;
         const target_piece = board[@intFromFloat(i)][@intFromFloat(newj)];
@@ -130,7 +133,7 @@ pub fn checkPawnMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
         max_possible_moves.* += 1;
     }
     take_left: {
-        const take_move_left = if (turn) [2]f32{ -1, -1 } else [2]f32{ -1, 1 };
+        const take_move_left = if (color) [2]f32{ -1, -1 } else [2]f32{ -1, 1 };
         const newi = i + take_move_left[0];
         const newj = j + take_move_left[1];
         if (newi < 0 or newi >= 8 or newj < 0 or newj >= 8) break :take_left;
@@ -139,17 +142,17 @@ pub fn checkPawnMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
         } else {
             black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)] = true;
         }
-        if (color != turn) break :take_left;
         const target_piece = board[@intFromFloat(newi)][@intFromFloat(newj)];
         if (target_piece == .None) break :take_left;
         const tempo = @intFromEnum(target_piece);
         const target_color = tempo < 7;
-        if (target_color == turn) break :take_left;
+        if (target_color == color) break :take_left;
+        if (color != turn) break :take_left;
         possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
         max_possible_moves.* += 1;
     }
     take_right: {
-        const take_move_right = if (turn) [2]f32{ 1, -1 } else [2]f32{ 1, 1 };
+        const take_move_right = if (color) [2]f32{ 1, -1 } else [2]f32{ 1, 1 };
         const newi = i + take_move_right[0];
         const newj = j + take_move_right[1];
         if (newi < 0 or newi >= 8 or newj < 0 or newj >= 8) break :take_right;
@@ -158,12 +161,12 @@ pub fn checkPawnMoves(board: *[8][8]C.Piece, black_attack_map: *[8][8]bool, whit
         } else {
             black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)] = true;
         }
-        if (color != turn) break :take_right;
         const target_piece = board[@intFromFloat(newi)][@intFromFloat(newj)];
         if (target_piece == .None) break :take_right;
         const tempo = @intFromEnum(target_piece);
         const target_color = tempo < 7;
-        if (target_color == turn) break :take_right;
+        if (target_color == color) break :take_right;
+        if (color != turn) break :take_right;
         possible_moves[max_possible_moves.*] = C.Move{ .from = rl.Vector2{ .x = i, .y = j }, .to = rl.Vector2{ .x = newi, .y = newj } };
         max_possible_moves.* += 1;
     }
