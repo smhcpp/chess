@@ -7,7 +7,7 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     const game = try C.init(allocator);
-    game.run();
+    try game.run(allocator);
     game.deinit(allocator);
     const leak = gpa.deinit(); // Checks for leaks in debug
     print("\nLeaks:\n {}", .{leak});
