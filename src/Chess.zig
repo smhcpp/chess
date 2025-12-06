@@ -33,6 +33,7 @@ pub const Chess = struct {
     white_attack_map: [8][8]bool = undefined,
     texture: rl.Texture2D = undefined,
     board_position: rl.Vector2 = .{ .x = 0, .y = 0 },
+    enpassant_location: ?rl.Vector2 = null,
     //turn : white move, !turn : black move
     turn: bool = true,
     possible_moves: [256]Move = undefined,
@@ -102,8 +103,6 @@ pub const Chess = struct {
                 c.turn,
                 @floatFromInt(wki),
                 @floatFromInt(wkj),
-                @floatFromInt(bki),
-                @floatFromInt(bkj),
             );
             H.checkKingMoves(
                 &c.board,
@@ -114,8 +113,6 @@ pub const Chess = struct {
                 c.turn,
                 @floatFromInt(bki),
                 @floatFromInt(bkj),
-                @floatFromInt(wki),
-                @floatFromInt(wkj),
             );
         }
         for (0..8) |i| {
@@ -125,27 +122,75 @@ pub const Chess = struct {
                         continue;
                     },
                     .WPawn, .BPawn => {
-                        H.checkPawnMoves(&c.board, &c.black_attack_map, &c.white_attack_map, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                        H.checkPawnMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                            c.enpassant_location,
+                        );
                     },
                     .WRook, .BRook => {
-                        H.checkRookMoves(&c.board, &c.black_attack_map, &c.white_attack_map, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                        H.checkRookMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
                     },
                     .WBishop, .BBishop => {
-                        H.checkBishopMoves(&c.board, &c.black_attack_map, &c.white_attack_map, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                        H.checkBishopMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
                     },
                     .WKnight, .BKnight => {
-                        H.checkKnightMoves(&c.board, &c.black_attack_map, &c.white_attack_map, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                        H.checkKnightMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
                     },
                     .WQueen, .BQueen => {
-                        H.checkQueenMoves(&c.board, &c.black_attack_map, &c.white_attack_map, &c.possible_moves, &c.max_possible_moves, c.turn, @floatFromInt(i), @floatFromInt(j));
+                        H.checkQueenMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
                     },
                     .WKing => {
                         wki = i;
                         wkj = j;
+                        H.updateKingAttacks(&c.board, &c.black_attack_map, &c.white_attack_map, @floatFromInt(wki), @floatFromInt(wkj));
                     },
                     .BKing => {
                         bki = i;
                         bkj = j;
+                        H.updateKingAttacks(&c.board, &c.black_attack_map, &c.white_attack_map, @floatFromInt(bki), @floatFromInt(bkj));
                     },
                 }
             }
@@ -161,6 +206,17 @@ pub const Chess = struct {
                 const piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
                 c.board[@intFromFloat(from.x)][@intFromFloat(from.y)] = .None;
                 c.board[@intFromFloat(to.x)][@intFromFloat(to.y)] = piece;
+
+                if (c.enpassant_location) |loc| {
+                    if (loc.x == to.x and loc.y == to.y) {
+                        const y = if (c.turn) loc.y + 1 else loc.y - 1;
+                        c.board[@intFromFloat(loc.x)][@intFromFloat(y)] = .None;
+                    }
+                }
+
+                c.enpassant_location = null;
+                if (piece == .BPawn and from.y == 1 and to.y == 3) c.enpassant_location = .{ .x = to.x, .y = to.y - 1 };
+                if (piece == .WPawn and from.y == 6 and to.y == 4) c.enpassant_location = .{ .x = to.x, .y = to.y + 1 };
                 c.turn = !c.turn;
                 c.updatePossibleMoves();
                 break;
