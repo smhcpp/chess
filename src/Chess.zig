@@ -198,45 +198,74 @@ pub const Chess = struct {
         }
     }
 
-    fn updatePossibleMoves(c: *Chess) void {
-        c.max_possible_moves = 0;
+    fn updateAttackMaps(c:*Chess) void {
         for (0..8) |i| {
             for (0..8) |j| {
                 c.black_attack_map[i][j] = false;
                 c.white_attack_map[i][j] = false;
             }
         }
-        var wki: usize = 0;
-        var wkj: usize = 0;
-        var bki: usize = 0;
-        var bkj: usize = 0;
-        defer {
-            // print("Updated attack maps {any}\n{any}\n", .{ c.black_attack_map, c.white_attack_map });
-            H.checkKingMoves(
-                &c.board,
-                &c.black_attack_map,
-                &c.white_attack_map,
-                &c.possible_moves,
-                &c.max_possible_moves,
-                c.turn,
-                @floatFromInt(wki),
-                @floatFromInt(wkj),
-                c.can_castle_short_white,
-                c.can_castle_long_white,
-            );
-            H.checkKingMoves(
-                &c.board,
-                &c.black_attack_map,
-                &c.white_attack_map,
-                &c.possible_moves,
-                &c.max_possible_moves,
-                c.turn,
-                @floatFromInt(bki),
-                @floatFromInt(bkj),
-                c.can_castle_short_black,
-                c.can_castle_long_black,
-            );
+        for (0..8) |i| {
+            for (0..8) |j| {
+                switch (c.board[i][j]) {
+                    .None => {
+                        continue;
+                    },
+                    .WPawn, .BPawn => {
+                        H.updatePawnAttacks(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
+                    },
+                    .WRook, .BRook => {
+                        H.updateRookAttacks(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
+                    },
+                    .WBishop, .BBishop => {
+                        H.updateBishopAttacks(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
+                    },
+                    .WKnight, .BKnight => {
+                        H.updateKnightAttacks(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
+                    },
+                    .WQueen, .BQueen => {
+                        H.updateKingAttacks(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                        );
+                    },
+                    .WKing,.BKing => {
+                        H.updateKingAttacks(&c.board, &c.black_attack_map, &c.white_attack_map, @floatFromInt(i), @floatFromInt(j));
+                    },
+                }
+            }
         }
+    }
+
+    fn updatePossibleMoves(c: *Chess) void {
+        c.max_possible_moves = 0;
         for (0..8) |i| {
             for (0..8) |j| {
                 switch (c.board[i][j]) {
@@ -305,14 +334,32 @@ pub const Chess = struct {
                         );
                     },
                     .WKing => {
-                        wki = i;
-                        wkj = j;
-                        H.updateKingAttacks(&c.board, &c.black_attack_map, &c.white_attack_map, @floatFromInt(wki), @floatFromInt(wkj));
+                        H.checkKingMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                            c.can_castle_short_white,
+                            c.can_castle_long_white,
+                        );
                     },
                     .BKing => {
-                        bki = i;
-                        bkj = j;
-                        H.updateKingAttacks(&c.board, &c.black_attack_map, &c.white_attack_map, @floatFromInt(bki), @floatFromInt(bkj));
+                        H.checkKingMoves(
+                            &c.board,
+                            &c.black_attack_map,
+                            &c.white_attack_map,
+                            &c.possible_moves,
+                            &c.max_possible_moves,
+                            c.turn,
+                            @floatFromInt(i),
+                            @floatFromInt(j),
+                            c.can_castle_short_black,
+                            c.can_castle_long_black,
+                        );
                     },
                 }
             }
@@ -332,7 +379,6 @@ pub const Chess = struct {
             const to_equal = c.possible_moves[i].to.x == to.x and c.possible_moves[i].to.y == to.y;
             if (from_equal and to_equal) {
                 const piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
-                // const target_piece = c.board[@intFromFloat(to.x)][@intFromFloat(to.y)];
                 try c.setBoardPiece(allocator, from.x, from.y, .None);
                 try c.setBoardPiece(allocator, to.x, to.y, piece);
 
@@ -375,16 +421,17 @@ pub const Chess = struct {
                     c.black_king_location = .{ .x = to.x, .y = to.y };
                 }
 
-                c.updatePossibleMoves();
+                // c.updateAttackMaps();
+                // c.updatePossibleMoves();
 
-                if ((c.turn and c.black_attack_map[@intFromFloat(c.white_king_location.x)][@intFromFloat(c.white_king_location.y)])) {
-                    c.revertMoves();
-                    break;
-                }
-                if ((!c.turn and c.white_attack_map[@intFromFloat(c.black_king_location.x)][@intFromFloat(c.black_king_location.y)])) {
-                    c.revertMoves();
-                    break;
-                }
+                // if ((c.turn and c.black_attack_map[@intFromFloat(c.white_king_location.x)][@intFromFloat(c.white_king_location.y)])) {
+                //     c.revertMoves();
+                //     break;
+                // }
+                // if ((!c.turn and c.white_attack_map[@intFromFloat(c.black_king_location.x)][@intFromFloat(c.black_king_location.y)])) {
+                //     c.revertMoves();
+                //     break;
+                // }
                 if (from.x == 0 and from.y == 7) c.can_castle_long_white = false;
                 if (from.x == 7 and from.y == 7) c.can_castle_short_white = false;
                 if (from.x == 0 and from.y == 0) c.can_castle_long_black = false;
