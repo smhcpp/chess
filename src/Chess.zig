@@ -65,7 +65,6 @@ pub const Chess = struct {
     history: std.ArrayList(Event) = undefined,
     history_counter: usize = 0,
 
-
     pub fn init(allocator: std.mem.Allocator) !*Chess {
         const c = try allocator.create(Chess);
         c.* = .{
@@ -198,174 +197,6 @@ pub const Chess = struct {
         }
     }
 
-    fn updateAttackMaps(c:*Chess) void {
-        for (0..8) |i| {
-            for (0..8) |j| {
-                c.black_attack_map[i][j] = false;
-                c.white_attack_map[i][j] = false;
-            }
-        }
-        for (0..8) |i| {
-            for (0..8) |j| {
-                switch (c.board[i][j]) {
-                    .None => {
-                        continue;
-                    },
-                    .WPawn, .BPawn => {
-                        H.updatePawnAttacks(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WRook, .BRook => {
-                        H.updateRookAttacks(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WBishop, .BBishop => {
-                        H.updateBishopAttacks(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WKnight, .BKnight => {
-                        H.updateKnightAttacks(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WQueen, .BQueen => {
-                        H.updateKingAttacks(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WKing,.BKing => {
-                        H.updateKingAttacks(&c.board, &c.black_attack_map, &c.white_attack_map, @floatFromInt(i), @floatFromInt(j));
-                    },
-                }
-            }
-        }
-    }
-
-    fn updatePossibleMoves(c: *Chess) void {
-        c.max_possible_moves = 0;
-        for (0..8) |i| {
-            for (0..8) |j| {
-                switch (c.board[i][j]) {
-                    .None => {
-                        continue;
-                    },
-                    .WPawn, .BPawn => {
-                        H.checkPawnMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                            c.enpassant_location,
-                        );
-                    },
-                    .WRook, .BRook => {
-                        H.checkRookMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WBishop, .BBishop => {
-                        H.checkBishopMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WKnight, .BKnight => {
-                        H.checkKnightMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WQueen, .BQueen => {
-                        H.checkQueenMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                        );
-                    },
-                    .WKing => {
-                        H.checkKingMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                            c.can_castle_short_white,
-                            c.can_castle_long_white,
-                        );
-                    },
-                    .BKing => {
-                        H.checkKingMoves(
-                            &c.board,
-                            &c.black_attack_map,
-                            &c.white_attack_map,
-                            &c.possible_moves,
-                            &c.max_possible_moves,
-                            c.turn,
-                            @floatFromInt(i),
-                            @floatFromInt(j),
-                            c.can_castle_short_black,
-                            c.can_castle_long_black,
-                        );
-                    },
-                }
-            }
-        }
-    }
-
     fn setBoardPiece(c: *Chess, allocator: std.mem.Allocator, i: f32, j: f32, next_piece: Piece) !void {
         const prev_piece = c.board[@intFromFloat(i)][@intFromFloat(j)];
         c.board[@intFromFloat(i)][@intFromFloat(j)] = next_piece;
@@ -421,17 +252,6 @@ pub const Chess = struct {
                     c.black_king_location = .{ .x = to.x, .y = to.y };
                 }
 
-                // c.updateAttackMaps();
-                // c.updatePossibleMoves();
-
-                // if ((c.turn and c.black_attack_map[@intFromFloat(c.white_king_location.x)][@intFromFloat(c.white_king_location.y)])) {
-                //     c.revertMoves();
-                //     break;
-                // }
-                // if ((!c.turn and c.white_attack_map[@intFromFloat(c.black_king_location.x)][@intFromFloat(c.black_king_location.y)])) {
-                //     c.revertMoves();
-                //     break;
-                // }
                 if (from.x == 0 and from.y == 7) c.can_castle_long_white = false;
                 if (from.x == 7 and from.y == 7) c.can_castle_short_white = false;
                 if (from.x == 0 and from.y == 0) c.can_castle_long_black = false;
@@ -440,13 +260,18 @@ pub const Chess = struct {
                 if (to.x == 7 and to.y == 7) c.can_castle_short_white = false;
                 if (to.x == 0 and to.y == 0) c.can_castle_long_black = false;
                 if (to.x == 7 and to.y == 0) c.can_castle_short_black = false;
-
-                c.turn = !c.turn;
                 c.updatePossibleMoves();
+                c.turn = !c.turn;
                 c.history_counter = c.history.items.len;
                 break;
             }
         }
+    }
+
+    fn updatePossibleMoves(c: *Chess) void {
+        H.updatePossibleMoves(c);
+        H.filterPossibleMoves(c);
+        H.updateAttackMaps(c);
     }
 
     fn revertMoves(c: *Chess) void {
