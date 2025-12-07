@@ -84,22 +84,12 @@ pub fn filterPossibleMoves(c: *Chess) void {
     var i = c.max_possible_moves - 1;
     while (true) {
         const move = c.possible_moves[i];
-        var wking_loc = c.white_king_location;
-        var bking_loc = c.black_king_location;
-        const piece = c.board[@intFromFloat(move.from.x)][@intFromFloat(move.from.y)];
-        const target_piece = c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)];
-        if (piece == .WKing) wking_loc = move.to;
-        if (piece == .BKing) bking_loc = move.to;
-        fakeMove(c, move);
-        updateAttackMaps(c);
-        const color = @intFromEnum(piece) < 7;
-        const cond1 = color and c.black_attack_map[@intFromFloat(wking_loc.x)][@intFromFloat(wking_loc.y)];
-        const cond2 = !color and c.white_attack_map[@intFromFloat(bking_loc.x)][@intFromFloat(bking_loc.y)];
-        if (cond1 or cond2) {
+        const king_loc = if (c.turn) c.white_king_location else c.black_king_location;
+        const safe = isMoveSafe(&c.board, move, king_loc);
+        if (!safe) {
             c.possible_moves[i] = c.possible_moves[c.max_possible_moves - 1];
             c.max_possible_moves -= 1;
         }
-        revertFakeMove(c, move, target_piece);
         if (i > 0) {
             i -= 1;
         } else break;
@@ -138,6 +128,109 @@ pub fn updatePossibleMoves(c: *Chess) void {
             }
         }
     }
+}
+
+pub fn rookOrBishop(i: usize, is_white: bool) Piece {
+    if (i < 4) {
+        if (is_white) {
+            return .BRook;
+        } else {
+            return .WRook;
+        }
+    } else {
+        if (is_white) {
+            return .BBishop;
+        } else {
+            return .WBishop;
+        }
+    }
+}
+
+pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vector2) bool {
+    var king_loc = king_locaction;
+    const piece = board[@intFromFloat(move.from.x)][@intFromFloat(move.from.y)];
+    const target_piece = board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)];
+    const is_white = board[@intFromFloat(king_loc.x)][@intFromFloat(king_loc.y)] == .WKing;
+    // moved rook due to castling
+    // var moved_rook: ?Move = null;
+    // removed pawn due to enpassant
+    var removed_pawn: ?rl.Vector2 = null;
+    if (move.from.x == king_loc.x and move.from.y == king_loc.y) {
+        king_loc = move.to;
+        // if (move.from.x - move.to.x == -2) moved_rook = .{ .from = .{ .x = 0, .y = king_loc.y }, .to = .{ .x = 3, .y = king_loc.y } };
+        // if (move.from.x - move.to.x == 2) moved_rook = .{ .from = .{ .x = 7, .y = king_loc.y }, .to = .{ .x = 5, .y = king_loc.y } };
+    }
+    if ((is_white and piece == .WPawn) or (!is_white and piece == .BPawn)) {
+        if (target_piece == .None and move.from.x != move.to.x) {
+            const locy = if (is_white) move.to.y + 1 else move.to.y - 1;
+            removed_pawn = .{ .x = move.to.x, .y = locy };
+        }
+    }
+    // we have to imaging that piece is now in to.x,to.y and from.x, from.y is empty
+    const knight_moves = [_][2]f32{ .{ 2, 1 }, .{ 2, -1 }, .{ -2, 1 }, .{ -2, -1 }, .{ 1, 2 }, .{ 1, -2 }, .{ -1, 2 }, .{ -1, -2 } };
+    const sliding_steps: [8][2]f32 = .{ .{ 1, 0 }, .{ 0, 1 }, .{ -1, 0 }, .{ 0, -1 }, .{ 1, 1 }, .{ -1, 1 }, .{ -1, -1 }, .{ 1, -1 } };
+    const loc_y = if (is_white) king_loc.y + 1 else king_loc.y - 1;
+    const pawn_attacks: [2][2]f32 = .{ .{ king_loc.x - 1, loc_y }, .{ king_loc.x + 1, loc_y } };
+    // castling and enpassant to be considered
+    {
+        // Enemy Pawns
+        for (pawn_attacks) |loc| {
+            if (loc[0] < 0 or loc[0] > 7 or loc[1] < 0 or loc[1] > 7) continue;
+            var considered_piece = board[@intFromFloat(loc[0])][@intFromFloat(loc[1])];
+            if (loc[0] == move.from.x and loc[1] == move.from.y) continue;
+            if (loc[0] == move.to.x and loc[1] == move.to.y) considered_piece = target_piece;
+            if (removed_pawn) |pawn_loc| {
+                if (loc[0] == pawn_loc.x and loc[1] == pawn_loc.y) continue;
+            }
+            if (is_white and considered_piece == .BPawn) return false;
+            if (!is_white and considered_piece == .WPawn) return false;
+        }
+    }
+    {
+        // Enemy King
+        for (sliding_steps) |step| {
+            const locx = king_loc.x + step[0];
+            const locy = king_loc.y + step[1];
+            if (locx < 0 or locx > 7 or locy < 0 or locy > 7) continue;
+            const considered_piece = board[@intFromFloat(locx)][@intFromFloat(locy)];
+            if (is_white and considered_piece == .BKing) return false;
+            if (!is_white and considered_piece == .WKing) return false;
+        }
+    }
+    {
+        // Enemy Knights
+        for (knight_moves) |step| {
+            const locx = king_loc.x + step[0];
+            const locy = king_loc.y + step[1];
+            if (locx < 0 or locx > 7 or locy < 0 or locy > 7) continue;
+            const considered_piece = board[@intFromFloat(locx)][@intFromFloat(locy)];
+            if (is_white and considered_piece == .BKnight) return false;
+            if (!is_white and considered_piece == .WKnight) return false;
+        }
+    }
+    {
+        // Enemy Rooks, Bishops and Queen(s)
+        for (sliding_steps, 0..) |step, i| {
+            const enemy_piece = rookOrBishop(i, is_white);
+            var locx = king_loc.x;
+            var locy = king_loc.y;
+            while (true) {
+                locx += step[0];
+                locy += step[1];
+                if (locx < 0 or locx > 7 or locy < 0 or locy > 7) break;
+                var considered_piece = board[@intFromFloat(locx)][@intFromFloat(locy)];
+                if (removed_pawn) |pawn_loc| {
+                    if (locx == pawn_loc.x and locy == pawn_loc.y) considered_piece = .None;
+                }
+                const value = @intFromEnum(considered_piece);
+                if (is_white and value < 7 and value > 0) break;
+                if (!is_white and value > 7) break;
+                if (is_white and considered_piece == enemy_piece or considered_piece == .BQueen) return false;
+                if (!is_white and considered_piece == enemy_piece or considered_piece == .WQueen) return false;
+            }
+        }
+    }
+    return true;
 }
 
 pub fn updateAttackMaps(c: *Chess) void {
