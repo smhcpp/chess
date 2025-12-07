@@ -41,6 +41,8 @@ pub const Event = struct {
 pub const Chess = struct {
     pub const PieceSize: f32 = 60;
 
+    allocator: std.mem.Allocator,
+
     result: GameResult = .N,
     selected_piece: ?rl.Vector2 = null,
     board: [8][8]Piece = undefined,
@@ -64,10 +66,16 @@ pub const Chess = struct {
     // square_size: f32 = 60,
     history: std.ArrayList(Event) = undefined,
     history_counter: usize = 0,
+    promotion_state: enum { None, White, Black } = .None,
+    promotion_dialog_location: rl.Vector2 = .{ .x = 0, .y = 0 },
+    promotion_dialog_size: rl.Vector2 = .{ .x = 100, .y = 100 },
+    promotion_dialog_spacing: f32 = 4,
+    promotion_board_loc: [2]usize = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Chess {
         const c = try allocator.create(Chess);
         c.* = .{
+            .allocator = allocator,
             .history = try std.ArrayList(Event).initCapacity(allocator, 200),
         };
         try c.setup();
@@ -80,24 +88,32 @@ pub const Chess = struct {
         rl.setTraceLogLevel(.err);
         const screenWidth = PieceSize * 8;
         const screenHeight = PieceSize * 8;
+        c.promotion_dialog_size = .{
+            .x = 4 * PieceSize + 5 * c.promotion_dialog_spacing,
+            .y = PieceSize + 2 * c.promotion_dialog_spacing,
+        };
+        c.promotion_dialog_location = .{
+            .x = (c.board_position.x + screenWidth - c.promotion_dialog_size.x) / 2,
+            .y = (c.board_position.y + screenHeight - c.promotion_dialog_size.y) / 2,
+        };
         rl.initWindow(screenWidth, screenHeight, "Chess");
         rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
         c.texture = try rl.loadTexture("assets/pieces.png");
     }
 
-    pub fn deinit(c: *Chess, allocator: std.mem.Allocator) void {
+    pub fn deinit(c: *Chess) void {
         rl.unloadTexture(c.texture);
-        c.history.deinit(allocator);
-        allocator.destroy(c);
+        c.history.deinit(c.allocator);
+        c.allocator.destroy(c);
     }
 
-    pub fn run(c: *Chess, allocator: std.mem.Allocator) !void {
+    pub fn run(c: *Chess) !void {
         defer rl.closeWindow(); // Close window and OpenGL context
         while (!rl.windowShouldClose()) { // Detect window close button or ESC key
             // logic of the game and change piece location
             c.checkResults();
             if (c.result != .N) break;
-            try c.checkMouse(allocator);
+            try c.checkMouse();
             rl.beginDrawing();
             defer rl.endDrawing();
             rl.clearBackground(.black);
@@ -197,75 +213,110 @@ pub const Chess = struct {
         }
     }
 
-    fn setBoardPiece(c: *Chess, allocator: std.mem.Allocator, i: f32, j: f32, next_piece: Piece) !void {
+    fn setBoardPiece(c: *Chess, i: f32, j: f32, next_piece: Piece) !void {
         const prev_piece = c.board[@intFromFloat(i)][@intFromFloat(j)];
         c.board[@intFromFloat(i)][@intFromFloat(j)] = next_piece;
-        try c.history.append(allocator, .{ .i = i, .j = j, .prev_piece = prev_piece, .next_piece = next_piece });
+        try c.history.append(c.allocator, .{ .i = i, .j = j, .prev_piece = prev_piece, .next_piece = next_piece });
     }
 
-    pub fn movePiece(c: *Chess, allocator: std.mem.Allocator, from: rl.Vector2, to: rl.Vector2) !void {
+    pub fn movePiece(c: *Chess, from: rl.Vector2, to: rl.Vector2) !void {
         // print("Here are the possible moves: {any}\n", .{c.possible_moves[0..c.max_possible_moves]});
         for (0..c.max_possible_moves) |i| {
             const from_equal = c.possible_moves[i].from.x == from.x and c.possible_moves[i].from.y == from.y;
             const to_equal = c.possible_moves[i].to.x == to.x and c.possible_moves[i].to.y == to.y;
             if (from_equal and to_equal) {
                 const piece = c.board[@intFromFloat(from.x)][@intFromFloat(from.y)];
-                try c.setBoardPiece(allocator, from.x, from.y, .None);
-                try c.setBoardPiece(allocator, to.x, to.y, piece);
-
-                if (c.enpassant_location) |loc| {
-                    if (loc.x == to.x and loc.y == to.y) {
-                        const y = if (c.turn) loc.y + 1 else loc.y - 1;
-                        try c.setBoardPiece(allocator, loc.x, y, .None);
-                    }
-                }
-                c.enpassant_location = null;
-                if (piece == .BPawn and from.y == 1 and to.y == 3) c.enpassant_location = .{ .x = to.x, .y = to.y - 1 };
-                if (piece == .WPawn and from.y == 6 and to.y == 4) c.enpassant_location = .{ .x = to.x, .y = to.y + 1 };
-
-                if (piece == .WKing) {
-                    c.can_castle_short_white = false;
-                    c.can_castle_long_white = false;
-                    if (from.x - to.x == 2) {
-                        const rook = c.board[0][7];
-                        try c.setBoardPiece(allocator, 0, 7, .None);
-                        try c.setBoardPiece(allocator, 3, 7, rook);
-                    } else if (from.x - to.x == -2) {
-                        const rook = c.board[7][7];
-                        try c.setBoardPiece(allocator, 7, 7, .None);
-                        try c.setBoardPiece(allocator, 5, 7, rook);
-                    }
-                    c.white_king_location = .{ .x = to.x, .y = to.y };
-                }
-                if (piece == .BKing) {
-                    c.can_castle_short_black = false;
-                    c.can_castle_long_black = false;
-                    if (from.x - to.x == 2) {
-                        const rook = c.board[0][0];
-                        try c.setBoardPiece(allocator, 0, 0, .None);
-                        try c.setBoardPiece(allocator, 3, 0, rook);
-                    } else if (from.x - to.x == -2) {
-                        const rook = c.board[7][0];
-                        try c.setBoardPiece(allocator, 7, 0, .None);
-                        try c.setBoardPiece(allocator, 5, 0, rook);
-                    }
-                    c.black_king_location = .{ .x = to.x, .y = to.y };
-                }
-
-                if (from.x == 0 and from.y == 7) c.can_castle_long_white = false;
-                if (from.x == 7 and from.y == 7) c.can_castle_short_white = false;
-                if (from.x == 0 and from.y == 0) c.can_castle_long_black = false;
-                if (from.x == 7 and from.y == 0) c.can_castle_short_black = false;
-                if (to.x == 0 and to.y == 7) c.can_castle_long_white = false;
-                if (to.x == 7 and to.y == 7) c.can_castle_short_white = false;
-                if (to.x == 0 and to.y == 0) c.can_castle_long_black = false;
-                if (to.x == 7 and to.y == 0) c.can_castle_short_black = false;
-                c.turn = !c.turn;
-                c.updatePossibleMoves();
-                print("number of possible moves: {}\n", .{c.max_possible_moves});
-                c.history_counter = c.history.items.len;
+                try c.setBoardPiece(from.x, from.y, .None);
+                try c.setBoardPiece(to.x, to.y, piece);
+                try c.completePawnMove(piece, from, to);
+                try c.completeKingMove(piece, from, to);
+                c.checkCastlingRights(from, to);
+                c.finalizeMove();
                 break;
             }
+        }
+    }
+
+    fn finalizeMove(c: *Chess) void {
+        c.turn = !c.turn;
+        c.updatePossibleMoves();
+        print("number of possible moves: {}\n", .{c.max_possible_moves});
+        c.history_counter = c.history.items.len;
+    }
+
+    fn checkCastlingRights(c: *Chess, from: rl.Vector2, to: rl.Vector2) void {
+        if (from.x == 0 and from.y == 7) c.can_castle_long_white = false;
+        if (from.x == 7 and from.y == 7) c.can_castle_short_white = false;
+        if (from.x == 0 and from.y == 0) c.can_castle_long_black = false;
+        if (from.x == 7 and from.y == 0) c.can_castle_short_black = false;
+        if (to.x == 0 and to.y == 7) c.can_castle_long_white = false;
+        if (to.x == 7 and to.y == 7) c.can_castle_short_white = false;
+        if (to.x == 0 and to.y == 0) c.can_castle_long_black = false;
+        if (to.x == 7 and to.y == 0) c.can_castle_short_black = false;
+    }
+
+    fn completePawnMove(c: *Chess, piece: Piece, from: rl.Vector2, to: rl.Vector2) !void {
+        if (c.enpassant_location) |loc| {
+            if (loc.x == to.x and loc.y == to.y) {
+                const y = if (c.turn) loc.y + 1 else loc.y - 1;
+                try c.setBoardPiece(loc.x, y, .None);
+            }
+        }
+        c.enpassant_location = null;
+        if (piece == .BPawn and from.y == 1 and to.y == 3) c.enpassant_location = .{ .x = to.x, .y = to.y - 1 };
+        if (piece == .WPawn and from.y == 6 and to.y == 4) c.enpassant_location = .{ .x = to.x, .y = to.y + 1 };
+        if ((piece == .BPawn and to.y == 7) or (piece == .WPawn and to.y == 0)) {
+            c.promotion_state = if (piece == .WPawn) .White else .Black;
+            c.promotion_board_loc = .{ @intFromFloat(to.x), @intFromFloat(to.y) };
+        }
+    }
+
+    fn completeKingMove(c: *Chess, piece: Piece, from: rl.Vector2, to: rl.Vector2) !void {
+        if (piece != .WKing and piece != .BKing) return;
+        const j: usize = if (piece == .WKing) 7 else 0;
+        if (from.x - to.x == 2) {
+            const rook = c.board[0][j];
+            try c.setBoardPiece(0, @floatFromInt(j), .None);
+            try c.setBoardPiece(3, @floatFromInt(j), rook);
+        } else if (from.x - to.x == -2) {
+            const rook = c.board[7][j];
+            try c.setBoardPiece(7, @floatFromInt(j), .None);
+            try c.setBoardPiece(5, @floatFromInt(j), rook);
+        }
+        if (piece == .WKing) {
+            c.can_castle_short_white = false;
+            c.can_castle_long_white = false;
+            c.white_king_location = .{ .x = to.x, .y = to.y };
+        } else {
+            c.can_castle_short_black = false;
+            c.can_castle_long_black = false;
+            c.black_king_location = .{ .x = to.x, .y = to.y };
+        }
+    }
+
+    fn drawPromotionDialog(c: *Chess, startx: f32, starty: f32, is_white: bool) void {
+        const spacing = c.promotion_dialog_spacing;
+        const x = c.promotion_dialog_location.x;
+        const y = c.promotion_dialog_location.y;
+        const color = rl.Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
+        rl.drawRectangle(@intFromFloat(x), @intFromFloat(y), @intFromFloat(4 * PieceSize + 5 * spacing), @intFromFloat(2 * spacing + PieceSize), color);
+        const posx = [4]f32{ 3, 4, 2, 0 };
+        for (0..4) |i| {
+            const xi = x + @as(f32, @floatFromInt(i)) * PieceSize + @as(f32, @floatFromInt(i + 1)) * spacing;
+            rl.drawRectangleLines(@intFromFloat(xi), @intFromFloat(y), @intFromFloat(PieceSize), @intFromFloat(PieceSize), .black);
+            const dest_rect = rl.Rectangle{
+                .x = startx + xi,
+                .y = starty + y + spacing,
+                .width = PieceSize,
+                .height = PieceSize,
+            };
+            const src_rect = rl.Rectangle{
+                .x = posx[i] * PieceSize,
+                .y = if (is_white) PieceSize else 0,
+                .width = PieceSize,
+                .height = PieceSize,
+            };
+            rl.drawTexturePro(c.texture, src_rect, dest_rect, .{ .x = 0, .y = 0 }, 0, .white);
         }
     }
 
@@ -289,7 +340,7 @@ pub const Chess = struct {
         if (c.history_counter != c.history.items.len) unreachable;
     }
 
-    fn checkMouse(c: *Chess, allocator: std.mem.Allocator) !void {
+    fn checkMouse(c: *Chess) !void {
         const pressed = rl.isMouseButtonPressed(.left);
         // const hold = rl.isMouseButtonDown(.left);
         // if (!hold or !pressed) return;
@@ -300,18 +351,52 @@ pub const Chess = struct {
             c.selected_piece = null;
             return;
         }
+        if (c.promotion_state != .None) {
+            c.handlePromotion(mouse_pos.subtract(c.promotion_dialog_location));
+            return;
+        }
         const piece_x = @floor(pos.x / PieceSize);
         const piece_y = @floor(pos.y / PieceSize);
         const to_piece = c.board[@intFromFloat(piece_x)][@intFromFloat(piece_y)];
         if (c.selected_piece) |from| {
-            try c.movePiece(allocator, from, .{ .x = piece_x, .y = piece_y });
+            try c.movePiece(from, .{ .x = piece_x, .y = piece_y });
             c.selected_piece = null;
         } else if (to_piece != .None) c.selected_piece = .{ .x = piece_x, .y = piece_y };
+    }
+
+    fn handlePromotion(c: *Chess, pos: rl.Vector2) void {
+        if (pos.x < c.promotion_dialog_location.x + c.promotion_dialog_spacing or pos.x > c.promotion_dialog_location.x + c.promotion_dialog_size.x - c.promotion_dialog_spacing) return;
+        if (pos.y < c.promotion_dialog_location.y + c.promotion_dialog_spacing or pos.y > c.promotion_dialog_location.y + c.promotion_dialog_size.y - c.promotion_dialog_spacing) return;
+        const piece_x: i32 = @intFromFloat(@floor(pos.x / PieceSize));
+        switch (piece_x) {
+            0 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WKnight else .BKnight,
+            1 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WBishop else .BBishop,
+            2 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WRook else .BRook,
+            3 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WQueen else .BQueen,
+            else => {
+                unreachable;
+            },
+        }
+        c.promotion_state = .None;
     }
 
     fn drawBoard(c: *Chess) void {
         const startx = c.board_position.x;
         const starty = c.board_position.y;
+        c.drawEmptyBoard(startx, starty);
+        if (c.selected_piece) |selected_piece| {
+            const selectedx: i32 = @intFromFloat(startx + selected_piece.x * PieceSize);
+            const selectedy: i32 = @intFromFloat(starty + selected_piece.y * PieceSize);
+            rl.drawRectangleLines(selectedx, selectedy, PieceSize, PieceSize, rl.Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
+        }
+        c.drawPieces(startx, starty);
+        if (c.promotion_state != .None) {
+            const is_white = c.promotion_state == .White;
+            c.drawPromotionDialog(startx, starty, is_white);
+        }
+    }
+
+    fn drawEmptyBoard(c: *Chess, startx: f32, starty: f32) void {
         for (0..8) |i| {
             for (0..8) |j| {
                 const x: i32 = @intFromFloat(startx + @as(f32, @floatFromInt(i)) * PieceSize);
@@ -332,11 +417,9 @@ pub const Chess = struct {
                 }
             }
         }
-        if (c.selected_piece) |selected_piece| {
-            const selectedx: i32 = @intFromFloat(startx + selected_piece.x * PieceSize);
-            const selectedy: i32 = @intFromFloat(starty + selected_piece.y * PieceSize);
-            rl.drawRectangleLines(selectedx, selectedy, PieceSize, PieceSize, rl.Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
-        }
+    }
+
+    fn drawPieces(c: *Chess, startx: f32, starty: f32) void {
         for (0..8) |i| {
             for (0..8) |j| {
                 if (c.board[i][j] == .None) continue;
