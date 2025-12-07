@@ -172,7 +172,7 @@ pub const Chess = struct {
         const white_no_piece = white_queen_counter == 0 and white_knight_counter == 0 and white_bishop_counter == 0 and white_rook_counter == 0 and white_pawn_counter == 0;
         const black_no_piece = black_queen_counter == 0 and black_knight_counter == 0 and black_bishop_counter == 0 and black_rook_counter == 0 and black_pawn_counter == 0;
         if (white_no_piece and black_no_piece) c.result = .D;
-        if (c.possible_moves.len == 0) {
+        if (c.max_possible_moves == 0) {
             if (c.turn) {
                 if (c.black_attack_map[@intFromFloat(c.white_king_location.x)][@intFromFloat(c.white_king_location.y)]) {
                     c.result = .B;
@@ -260,8 +260,9 @@ pub const Chess = struct {
                 if (to.x == 7 and to.y == 7) c.can_castle_short_white = false;
                 if (to.x == 0 and to.y == 0) c.can_castle_long_black = false;
                 if (to.x == 7 and to.y == 0) c.can_castle_short_black = false;
-                c.updatePossibleMoves();
                 c.turn = !c.turn;
+                c.updatePossibleMoves();
+                print("number of possible moves: {}\n", .{c.max_possible_moves});
                 c.history_counter = c.history.items.len;
                 break;
             }

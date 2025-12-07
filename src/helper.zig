@@ -10,76 +10,6 @@ pub fn addPossibleMove(c: *Chess, i: f32, j: f32, newi: f32, newj: f32) void {
     c.max_possible_moves += 1;
 }
 
-pub fn fakeMove(c: *Chess, move: Move) void {
-    const piece = c.board[@intFromFloat(move.from.x)][@intFromFloat(move.from.y)];
-    const target_piece = c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)];
-    c.board[@intFromFloat(move.from.x)][@intFromFloat(move.from.y)] = .None;
-    c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)] = piece;
-    if (piece == .WKing) {
-        if (move.from.x - move.to.x == 2) {
-            const rook = c.board[0][7];
-            c.board[0][7] = .None;
-            c.board[3][7] = rook;
-        } else if (move.from.x - move.to.x == -2) {
-            const rook = c.board[7][7];
-            c.board[7][7] = .None;
-            c.board[5][7] = rook;
-        }
-    }
-    if (piece == .BKing) {
-        if (move.from.x - move.to.x == 2) {
-            const rook = c.board[0][0];
-            c.board[0][0] = .None;
-            c.board[3][0] = rook;
-        } else if (move.from.x - move.to.x == -2) {
-            const rook = c.board[7][0];
-            c.board[7][0] = .None;
-            c.board[5][0] = rook;
-        }
-    }
-    if (piece == .BPawn and target_piece == .None and move.from.x != move.to.x) {
-        c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y + 1)] = .None;
-    }
-    if (piece == .WPawn and target_piece == .None and move.from.x != move.to.x) {
-        c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y - 1)] = .None;
-    }
-}
-
-pub fn revertFakeMove(c: *Chess, move: Move, target_piece: Piece) void {
-    const piece = c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)];
-    const prev_target_piece = c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)];
-    c.board[@intFromFloat(move.from.x)][@intFromFloat(move.from.y)] = piece;
-    c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)] = target_piece;
-    if (piece == .WKing) {
-        if (move.from.x - move.to.x == 2) {
-            const rook = c.board[3][7];
-            c.board[3][7] = .None;
-            c.board[0][7] = rook;
-        } else if (move.from.x - move.to.x == -2) {
-            const rook = c.board[5][7];
-            c.board[5][7] = .None;
-            c.board[7][7] = rook;
-        }
-    }
-    if (piece == .BKing) {
-        if (move.from.x - move.to.x == 2) {
-            const rook = c.board[3][0];
-            c.board[3][0] = .None;
-            c.board[0][0] = rook;
-        } else if (move.from.x - move.to.x == -2) {
-            const rook = c.board[5][0];
-            c.board[5][0] = .None;
-            c.board[7][0] = rook;
-        }
-    }
-    if (piece == .BPawn and prev_target_piece == .None and move.from.x != move.to.x) {
-        c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y + 1)] = .WPawn;
-    }
-    if (piece == .WPawn and prev_target_piece == .None and move.from.x != move.to.x) {
-        c.board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y - 1)] = .BPawn;
-    }
-}
-
 pub fn filterPossibleMoves(c: *Chess) void {
     var i = c.max_possible_moves - 1;
     while (true) {
@@ -178,7 +108,7 @@ pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vect
             if (loc[0] < 0 or loc[0] > 7 or loc[1] < 0 or loc[1] > 7) continue;
             var considered_piece = board[@intFromFloat(loc[0])][@intFromFloat(loc[1])];
             if (loc[0] == move.from.x and loc[1] == move.from.y) continue;
-            if (loc[0] == move.to.x and loc[1] == move.to.y) considered_piece = target_piece;
+            if (loc[0] == move.to.x and loc[1] == move.to.y) considered_piece = piece;
             if (removed_pawn) |pawn_loc| {
                 if (loc[0] == pawn_loc.x and loc[1] == pawn_loc.y) continue;
             }
@@ -203,7 +133,9 @@ pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vect
             const locx = king_loc.x + step[0];
             const locy = king_loc.y + step[1];
             if (locx < 0 or locx > 7 or locy < 0 or locy > 7) continue;
-            const considered_piece = board[@intFromFloat(locx)][@intFromFloat(locy)];
+            var considered_piece = board[@intFromFloat(locx)][@intFromFloat(locy)];
+            if (locx == move.from.x and locy == move.from.y) continue;
+            if (locx == move.to.x and locy == move.to.y) considered_piece = piece;
             if (is_white and considered_piece == .BKnight) return false;
             if (!is_white and considered_piece == .WKnight) return false;
         }
@@ -222,11 +154,14 @@ pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vect
                 if (removed_pawn) |pawn_loc| {
                     if (locx == pawn_loc.x and locy == pawn_loc.y) considered_piece = .None;
                 }
+                if (locx == move.from.x and locy == move.from.y) continue;
+                if (locx == move.to.x and locy == move.to.y) considered_piece = piece;
                 const value = @intFromEnum(considered_piece);
                 if (is_white and value < 7 and value > 0) break;
                 if (!is_white and value > 7) break;
-                if (is_white and considered_piece == enemy_piece or considered_piece == .BQueen) return false;
-                if (!is_white and considered_piece == enemy_piece or considered_piece == .WQueen) return false;
+                if (is_white and (considered_piece == enemy_piece or considered_piece == .BQueen)) return false;
+                if (!is_white and (considered_piece == enemy_piece or considered_piece == .WQueen)) return false;
+                if (considered_piece != .None) break;
             }
         }
     }
