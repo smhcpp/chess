@@ -298,12 +298,14 @@ pub const Chess = struct {
         const spacing = c.promotion_dialog_spacing;
         const x = c.promotion_dialog_location.x;
         const y = c.promotion_dialog_location.y;
+        const w = c.promotion_dialog_size.x;
+        const h = c.promotion_dialog_size.y;
         const color = rl.Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
-        rl.drawRectangle(@intFromFloat(x), @intFromFloat(y), @intFromFloat(4 * PieceSize + 5 * spacing), @intFromFloat(2 * spacing + PieceSize), color);
+        rl.drawRectangle(@intFromFloat(x), @intFromFloat(y), @intFromFloat(w), @intFromFloat(h), color);
         const posx = [4]f32{ 3, 4, 2, 0 };
         for (0..4) |i| {
             const xi = x + @as(f32, @floatFromInt(i)) * PieceSize + @as(f32, @floatFromInt(i + 1)) * spacing;
-            rl.drawRectangleLines(@intFromFloat(xi), @intFromFloat(y), @intFromFloat(PieceSize), @intFromFloat(PieceSize), .black);
+            rl.drawRectangleLines(@intFromFloat(xi), @intFromFloat(starty + y + spacing), @intFromFloat(PieceSize), @intFromFloat(PieceSize), .black);
             const dest_rect = rl.Rectangle{
                 .x = startx + xi,
                 .y = starty + y + spacing,
@@ -365,17 +367,24 @@ pub const Chess = struct {
     }
 
     fn handlePromotion(c: *Chess, pos: rl.Vector2) void {
-        if (pos.x < c.promotion_dialog_location.x + c.promotion_dialog_spacing or pos.x > c.promotion_dialog_location.x + c.promotion_dialog_size.x - c.promotion_dialog_spacing) return;
-        if (pos.y < c.promotion_dialog_location.y + c.promotion_dialog_spacing or pos.y > c.promotion_dialog_location.y + c.promotion_dialog_size.y - c.promotion_dialog_spacing) return;
-        const piece_x: i32 = @intFromFloat(@floor(pos.x / PieceSize));
-        switch (piece_x) {
-            0 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WKnight else .BKnight,
-            1 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WBishop else .BBishop,
-            2 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WRook else .BRook,
-            3 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WQueen else .BQueen,
-            else => {
-                unreachable;
-            },
+        if (pos.x < c.promotion_dialog_spacing or pos.x > c.promotion_dialog_size.x - c.promotion_dialog_spacing) return;
+        if (pos.y < c.promotion_dialog_spacing or pos.y > c.promotion_dialog_size.y - c.promotion_dialog_spacing) return;
+        const spacing = c.promotion_dialog_spacing;
+        for (0..4) |i| {
+            const start_x = @as(f32, @floatFromInt(i)) * PieceSize + @as(f32, @floatFromInt(i + 1)) * spacing;
+            const end_x = start_x + PieceSize;
+            if (pos.x < start_x or pos.x > end_x) continue;
+            switch (i) {
+                0 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WKnight else .BKnight,
+                1 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WBishop else .BBishop,
+                2 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WRook else .BRook,
+                3 => c.board[c.promotion_board_loc[0]][c.promotion_board_loc[1]] = if (c.promotion_state == .White) .WQueen else .BQueen,
+                else => {
+                    unreachable;
+                },
+            }
+            c.updatePossibleMoves();
+            break;
         }
         c.promotion_state = .None;
     }
