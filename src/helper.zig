@@ -15,7 +15,8 @@ pub fn filterPossibleMoves(c: *Chess) void {
     while (true) {
         const move = c.possible_moves[i];
         const king_loc = if (c.turn) c.white_king_location else c.black_king_location;
-        const safe = isMoveSafe(&c.board, move, king_loc);
+        const enemy_king_location = if (c.turn) c.black_king_location else c.white_king_location;
+        const safe = isMoveSafe(&c.board, move, king_loc, enemy_king_location);
         if (!safe) {
             c.possible_moves[i] = c.possible_moves[c.max_possible_moves - 1];
             c.max_possible_moves -= 1;
@@ -76,8 +77,8 @@ pub fn rookOrBishop(i: usize, is_white: bool) Piece {
     }
 }
 
-pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vector2) bool {
-    var king_loc = king_locaction;
+pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, first_king_location: rl.Vector2, enemy_king_location: rl.Vector2) bool {
+    var king_loc = first_king_location;
     const piece = board[@intFromFloat(move.from.x)][@intFromFloat(move.from.y)];
     const target_piece = board[@intFromFloat(move.to.x)][@intFromFloat(move.to.y)];
     const is_white = board[@intFromFloat(king_loc.x)][@intFromFloat(king_loc.y)] == .WKing;
@@ -99,12 +100,12 @@ pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vect
     // we have to imaging that piece is now in to.x,to.y and from.x, from.y is empty
     const knight_moves = [_][2]f32{ .{ 2, 1 }, .{ 2, -1 }, .{ -2, 1 }, .{ -2, -1 }, .{ 1, 2 }, .{ 1, -2 }, .{ -1, 2 }, .{ -1, -2 } };
     const sliding_steps: [8][2]f32 = .{ .{ 1, 0 }, .{ 0, 1 }, .{ -1, 0 }, .{ 0, -1 }, .{ 1, 1 }, .{ -1, 1 }, .{ -1, -1 }, .{ 1, -1 } };
-    const loc_y = if (is_white) king_loc.y + 1 else king_loc.y - 1;
-    const pawn_attacks: [2][2]f32 = .{ .{ king_loc.x - 1, loc_y }, .{ king_loc.x + 1, loc_y } };
+    const loc_y = if (is_white) king_loc.y - 1 else king_loc.y + 1;
+    const pawn_locs: [2][2]f32 = .{ .{ king_loc.x - 1, loc_y }, .{ king_loc.x + 1, loc_y } };
     // castling and enpassant to be considered
     {
         // Enemy Pawns
-        for (pawn_attacks) |loc| {
+        for (pawn_locs) |loc| {
             if (loc[0] < 0 or loc[0] > 7 or loc[1] < 0 or loc[1] > 7) continue;
             var considered_piece = board[@intFromFloat(loc[0])][@intFromFloat(loc[1])];
             if (loc[0] == move.from.x and loc[1] == move.from.y) continue;
@@ -118,14 +119,9 @@ pub fn isMoveSafe(board: *const [8][8]Piece, move: Move, king_locaction: rl.Vect
     }
     {
         // Enemy King
-        for (sliding_steps) |step| {
-            const locx = king_loc.x + step[0];
-            const locy = king_loc.y + step[1];
-            if (locx < 0 or locx > 7 or locy < 0 or locy > 7) continue;
-            const considered_piece = board[@intFromFloat(locx)][@intFromFloat(locy)];
-            if (is_white and considered_piece == .BKing) return false;
-            if (!is_white and considered_piece == .WKing) return false;
-        }
+        const diff = king_loc.subtract(enemy_king_location);
+        const dist2 = diff.x * diff.x + diff.y * diff.y;
+        if (dist2 <= 2) return false;
     }
     {
         // Enemy Knights
@@ -486,8 +482,8 @@ pub fn checkKingMoves(
         const target_piece = c.board[@intFromFloat(newi)][@intFromFloat(newj)];
         const target_color = @intFromEnum(target_piece) < 7;
         if (target_color == c.turn and target_piece != .None) continue;
-        if (color and c.black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)]) continue;
-        if (!color and c.white_attack_map[@intFromFloat(newi)][@intFromFloat(newj)]) continue;
+        // if (color and c.black_attack_map[@intFromFloat(newi)][@intFromFloat(newj)]) continue;
+        // if (!color and c.white_attack_map[@intFromFloat(newi)][@intFromFloat(newj)]) continue;
         addPossibleMove(c, i, j, newi, newj);
     }
     const can_castle_short = if (color) c.can_castle_short_white else c.can_castle_short_black;
